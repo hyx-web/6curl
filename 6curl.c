@@ -122,14 +122,14 @@ void *download_thread(void *arg) {
     
     FILE *fp = fopen(temp_filename, "wb");
     if (!fp) {
-        snprintf(data->status, sizeof(data->status), "无法创建临时文件");
+        snprintf(data->status, sizeof(data->status), "Failed to create temporary file");
         return NULL;
     }
     
     CURL *curl = curl_easy_init();
     if (!curl) {
         fclose(fp);
-        snprintf(data->status, sizeof(data->status), "curl初始化失败");
+        snprintf(data->status, sizeof(data->status), "curl initialization failed");
         return NULL;
     }
 
@@ -154,10 +154,10 @@ void *download_thread(void *arg) {
     
     if (data->curl_res == CURLE_OK && 
         (data->http_status == 200 || data->http_status == 206)) {
-        snprintf(data->status, sizeof(data->status), "完成 (%.2f KB/s)", 
+        snprintf(data->status, sizeof(data->status), "Completed (%.2f KB/s)", 
                  data->download_speed / 1024.0);
     } else {
-        snprintf(data->status, sizeof(data->status), "失败 (%s)", 
+        snprintf(data->status, sizeof(data->status), "Failed (%s)", 
                  curl_easy_strerror(data->curl_res));
     }
     
@@ -193,14 +193,14 @@ int merge_files(const char *filename, int thread_count) {
 }
 
 void multithread_download(const char *url, const char *filename) {
-    printf("开始下载: %s\n", url);
-    printf("保存到: %s\n", filename);
+    printf("Starting download: %s\n", url);
+    printf("Saving to: %s\n", filename);
     long file_size = get_file_size(url);
     if (file_size <= 0) {
-        printf("无法获取文件大小，使用单线程下载\n");
+        printf("Unable to get file size, using single thread download\n");
         FILE *fp = fopen(filename, "wb");
         if (!fp) {
-            printf("无法创建文件: %s\n", filename);
+            printf("Failed to create file: %s\n", filename);
             return;
         }
         
@@ -218,12 +218,12 @@ void multithread_download(const char *url, const char *filename) {
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
             
             if (res != CURLE_OK || (http_code != 200 && http_code != 201 && http_code != 202)) {
-                printf("下载失败: %s (HTTP %ld)\n清理中...\n", 
+                printf("Download failed: %s (HTTP %ld)\nCleaning up...\n", 
                        curl_easy_strerror(res), http_code);
                 fclose(fp);
                 remove(filename);
             } else {
-                printf("下载成功\n");
+                printf("Download succeeded\n");
                 fclose(fp);
             }
             curl_easy_cleanup(curl);
@@ -233,7 +233,7 @@ void multithread_download(const char *url, const char *filename) {
         return;
     }
     
-    printf("文件大小: %.2f MB\n", (double)file_size / (1024 * 1024));
+    printf("File size: %.2f MB\n", (double)file_size / (1024 * 1024));
     long chunk_size = file_size / THREAD_COUNT;
     pthread_t threads[THREAD_COUNT];
     ThreadData thread_data[THREAD_COUNT];
@@ -244,26 +244,26 @@ void multithread_download(const char *url, const char *filename) {
         thread_data[i].start_byte = i * chunk_size;
         thread_data[i].end_byte = (i == THREAD_COUNT - 1) ? file_size - 1 : (i + 1) * chunk_size - 1;
         thread_data[i].download_speed = 0;
-        snprintf(thread_data[i].status, sizeof(thread_data[i].status), "准备中...");
+        snprintf(thread_data[i].status, sizeof(thread_data[i].status), "Preparing...");
         
         if (pthread_create(&threads[i], NULL, download_thread, &thread_data[i]) != 0) {
-            perror("无法创建线程");
-            snprintf(thread_data[i].status, sizeof(thread_data[i].status), "线程创建失败");
+            perror("Failed to create thread");
+            snprintf(thread_data[i].status, sizeof(thread_data[i].status), "Thread creation failed");
         }
         else {
-            snprintf(thread_data[i].status, sizeof(thread_data[i].status), "下载中...");
+            snprintf(thread_data[i].status, sizeof(thread_data[i].status), "Downloading...");
         }
     }
 
     for (int i = 0; i < THREAD_COUNT; i++) {
         pthread_join(threads[i], NULL);
-        printf("线程 %d: %s\n", i, thread_data[i].status);
+        printf("Thread %d: %s\n", i, thread_data[i].status);
     }
 
     if (merge_files(filename, THREAD_COUNT)) {
-        printf("下载完成并合并成功\n");
+        printf("Download completed and merged successfully\n");
     } else {
-        printf("文件合并失败\n");
+        printf("File merge failed\n");
         remove(filename);
     }
 }
@@ -271,13 +271,13 @@ void multithread_download(const char *url, const char *filename) {
 void start_download(const char *url) {
     char *filename = extract_filename(url);
     if (filename == NULL) {
-        printf("URL 没有文件名\n");
+        printf("URL has no filename\n");
         return;
     }
 
     char filepath[PATH_MAX];
     snprintf(filepath, sizeof(filepath), "/home/%s/%s", getlogin(), filename);
-    printf("输出文件: %s\n", filepath);
+    printf("Output file: %s\n", filepath);
     multithread_download(url, filepath);
     free(filename);
 }
@@ -323,7 +323,7 @@ int main() {
     if (font) {
         XSetFont(app.display, app.gc, font->fid);
     } else {
-        fprintf(stderr, "无法加载字体\n");
+        fprintf(stderr, "Unable to load font\n");
         XFreeGC(app.display, app.gc);
         XDestroyWindow(app.display, app.window);
         XCloseDisplay(app.display);
@@ -356,11 +356,11 @@ int main() {
                 app.input_active = 1;
             } else if (is_point_in_rect(px, py, app.button_x, app.button_y, app.button_w, app.button_h)) {
                 if (strlen(app.input_text) > 0) {
-                    printf("下载开始...\n");
+                    printf("Starting download...\n");
                     start_download(app.input_text);
-                    printf("下载完成\n");
+                    printf("Download completed\n");
                 } else {
-                    printf("请输入 URL\n");
+                    printf("Please enter URL\n");
                 }
             } else {
                 app.input_active = 0;
