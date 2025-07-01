@@ -1,2 +1,2 @@
 # 6curl
-Quick downloader
+Quick gui downloader
