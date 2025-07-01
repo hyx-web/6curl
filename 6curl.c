@@ -12,7 +12,7 @@
 
 #define WIDTH 600
 #define HEIGHT 700
-#define THREAD_COUNT 16 // 定义线程数
+#define THREAD_COUNT 16
 
 typedef struct {
     Display *display;
@@ -27,7 +27,6 @@ typedef struct {
     int button_x, button_y, button_w, button_h;
 } App;
 
-// 线程下载状态结构
 typedef struct {
     const char *url;
     const char *filename;
@@ -54,7 +53,6 @@ size_t write_callback(void *ptr, size_t size, size_t nmemb, void *userdata) {
     return fwrite(ptr, size, nmemb, fp);
 }
 
-// 进度回调函数用于计算下载速度
 static int progress_callback(void *clientp, curl_off_t dltotal, curl_off_t dlnow, 
                             curl_off_t ultotal, curl_off_t ulnow) {
     ThreadData *data = (ThreadData *)clientp;
@@ -94,13 +92,11 @@ char *extract_filename(const char *url) {
     }
 }
 
-// 获取文件大小
 long get_file_size(const char *url) {
     CURL *curl = curl_easy_init();
     if (!curl) return -1;
-    
     curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L); // HEAD请求
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
@@ -119,11 +115,8 @@ long get_file_size(const char *url) {
     return (long)file_size;
 }
 
-// 单个线程的下载函数
 void *download_thread(void *arg) {
     ThreadData *data = (ThreadData *)arg;
-    
-    // 创建临时文件名
     char temp_filename[PATH_MAX];
     snprintf(temp_filename, sizeof(temp_filename), "%s.part%d", data->filename, data->thread_id);
     
@@ -139,11 +132,9 @@ void *download_thread(void *arg) {
         snprintf(data->status, sizeof(data->status), "curl初始化失败");
         return NULL;
     }
-    
-    // 设置下载范围
+
     char range_header[50];
-    snprintf(range_header, sizeof(range_header), "%ld-%ld", data->start_byte, data->end_byte);
-    
+    snprintf(range_header, sizeof(range_header), "%ld-%ld", data->start_byte, data->end_byte);    
     curl_easy_setopt(curl, CURLOPT_URL, data->url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
@@ -155,10 +146,7 @@ void *download_thread(void *arg) {
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, data);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    
     data->curl_res = curl_easy_perform(curl);
-    
-    // 获取HTTP状态码
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &data->http_status);
     
     fclose(fp);
@@ -176,17 +164,14 @@ void *download_thread(void *arg) {
     return NULL;
 }
 
-// 合并下载的部分文件
 int merge_files(const char *filename, int thread_count) {
     FILE *output = fopen(filename, "wb");
-    if (!output) return 0;
-    
+    if (!output) return 0;    
     int success = 1;
     
     for (int i = 0; i < thread_count; i++) {
         char part_filename[PATH_MAX];
-        snprintf(part_filename, sizeof(part_filename), "%s.part%d", filename, i);
-        
+        snprintf(part_filename, sizeof(part_filename), "%s.part%d", filename, i);       
         FILE *input = fopen(part_filename, "rb");
         if (!input) {
             success = 0;
@@ -200,23 +185,19 @@ int merge_files(const char *filename, int thread_count) {
         }
         
         fclose(input);
-        remove(part_filename); // 删除临时文件
+        remove(part_filename);
     }
     
     fclose(output);
     return success;
 }
 
-// 多线程下载主函数
 void multithread_download(const char *url, const char *filename) {
     printf("开始下载: %s\n", url);
     printf("保存到: %s\n", filename);
-    
-    // 获取文件大小
     long file_size = get_file_size(url);
     if (file_size <= 0) {
         printf("无法获取文件大小，使用单线程下载\n");
-        // 使用单线程下载
         FILE *fp = fopen(filename, "wb");
         if (!fp) {
             printf("无法创建文件: %s\n", filename);
@@ -231,8 +212,7 @@ void multithread_download(const char *url, const char *filename) {
             curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-            curl_easy_setopt(curl, CURLOPT_USERAGENT, "6curl/1.0");
-            
+            curl_easy_setopt(curl, CURLOPT_USERAGENT, "6curl/1.0");            
             CURLcode res = curl_easy_perform(curl);
             long http_code;
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
@@ -254,13 +234,9 @@ void multithread_download(const char *url, const char *filename) {
     }
     
     printf("文件大小: %.2f MB\n", (double)file_size / (1024 * 1024));
-    
-    // 计算每个线程的大小
     long chunk_size = file_size / THREAD_COUNT;
     pthread_t threads[THREAD_COUNT];
     ThreadData thread_data[THREAD_COUNT];
-    
-    // 创建线程
     for (int i = 0; i < THREAD_COUNT; i++) {
         thread_data[i].url = url;
         thread_data[i].filename = filename;
@@ -278,14 +254,12 @@ void multithread_download(const char *url, const char *filename) {
             snprintf(thread_data[i].status, sizeof(thread_data[i].status), "下载中...");
         }
     }
-    
-    // 等待所有线程完成
+
     for (int i = 0; i < THREAD_COUNT; i++) {
         pthread_join(threads[i], NULL);
         printf("线程 %d: %s\n", i, thread_data[i].status);
     }
-    
-    // 合并文件
+
     if (merge_files(filename, THREAD_COUNT)) {
         printf("下载完成并合并成功\n");
     } else {
@@ -304,10 +278,7 @@ void start_download(const char *url) {
     char filepath[PATH_MAX];
     snprintf(filepath, sizeof(filepath), "/home/%s/%s", getlogin(), filename);
     printf("输出文件: %s\n", filepath);
-
-    // 使用多线程下载
     multithread_download(url, filepath);
-    
     free(filename);
 }
 
